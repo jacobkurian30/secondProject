@@ -14,7 +14,7 @@ import {
   StyleSheet,
   Text,
   useColorScheme,
-  View,
+  View, ActivityIndicator
 } from 'react-native';
 
 import {
@@ -34,7 +34,7 @@ import { Image } from 'expo-image';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
 import { Camera, useCameraPermission, useCameraDevice, useCameraDevices, CameraDevice,getCameraDevice, } from 'react-native-vision-camera';
 import { CameraRoll } from "@react-native-camera-roll/camera-roll";
-
+import ImageCropPicker from 'react-native-image-crop-picker';
 
 
 
@@ -44,16 +44,7 @@ import { request, PERMISSIONS, RESULTS , check, requestMultiple, openSettings} f
 function App(): React.JSX.Element {
 
   const { hasPermission, requestPermission } = useCameraPermission();
- // const device = useCameraDevices().back;
-/*
-  const device = useCameraDevice('back', {
-    physicalDevices: [
-      'ultra-wide-angle-camera',
-      'wide-angle-camera',
-      'telephoto-camera'
-    ]
-  });
-*/
+
 
 
   const[hasCameraPermission, setHasCameraPermission] = useState(null);
@@ -64,8 +55,6 @@ function App(): React.JSX.Element {
   const[isImageTaken, setIsImageTaken]= useState(false);
   const[content, setContent] = useState();
   const camera = useRef<Camera>(null)
- // const devices = Camera.getAvailableCameraDevices();
- // const device = getCameraDevice(devices, 'back');
   const [isLoading, setIsLoading] = useState(true);
   const [permissionGranted, setPermissionGranted] = useState(false);
 
@@ -78,19 +67,6 @@ function App(): React.JSX.Element {
   });
 
 
-/*
-const[cameraPosition, setCameraPosition] = useState<'front' | 'back'>('back');
-const[prefferedCamera] = usePreferredCameraDevice
-  */
-/*
- const devices = Camera.getAvailableCameraDevices()
- const backCameras = devices.filter((d) => d.position === "back")
- const frontCameras = devices.filter((d) => d.position === "front")
- console.log("B : " + backCameras + backCameras.length);
- console.log("F" + frontCameras);
- const device = getCameraDevice(devices, 'back');
- */
-  //Initial load  camera fails
 
 
   const requestMediaLibraryPermission = async () => {
@@ -148,7 +124,7 @@ const[prefferedCamera] = usePreferredCameraDevice
 
     console.log("~~~~~~~  Count:");
     console.log("useEffect camera status");
-  }, [camera, device, isLoading, permissionGranted]);
+  }, [camera, device, isLoading, permissionGranted, image]);
 
   
 
@@ -173,11 +149,16 @@ const[prefferedCamera] = usePreferredCameraDevice
 
 
   if (isLoading) {
-    return <Text>Loading camera...</Text>;
+    return <View style={styles.loadingScreen}>
+    <ActivityIndicator size="large" color="#ffffff" style={styles.spinner} />
+    <Text style={styles.loadingScreenContent}>Loading camera...</Text>
+  </View>;
   }
   if (!permissionGranted) {
     return <Text>Waiting for camera permissions...</Text>;
   }
+
+
   async function takePicture(){
      var imageUrl: string;
 
@@ -189,8 +170,10 @@ const[prefferedCamera] = usePreferredCameraDevice
       const savedUri = await CameraRoll.save(`file://${photo.path}`, {
       type: 'photo',
     })
-    console.log("saved URL : "+ savedUri);
-  readContentFromPicture(savedUri);
+
+      console.log("saved URL : "+ savedUri);
+      setImage(savedUri);
+      readContentFromPicture(savedUri);
 
     //console.log(photo);
     } catch(e){
@@ -202,15 +185,29 @@ const[prefferedCamera] = usePreferredCameraDevice
 
   function test(){}
 
-
-  
-
+  const cropImage = async (imagePath: string) => {
+    console.log("Image Path " + imagePath);
+    try {
+      const croppedImage = await ImageCropPicker.openCropper(
+      {
+        path: imagePath,
+        width: 300,  // Desired width
+        height: 300, // Desired height
+        cropping: true,
+      }
+    );
+      console.log('Cropped Image:', croppedImage);
+    } catch (error) {
+      console.error('Error cropping image:', error);
+    }
+  };
 
 
   const cameraProps = {
     device: device,
     isActive: true,
-    preview: true
+    preview: true,
+    enableZoomGesture: true
   };
 
 
@@ -223,7 +220,7 @@ const[prefferedCamera] = usePreferredCameraDevice
 
         <View style={styles.buttonContainer}>
           <CustomButton title={'camera'} onPress={takePicture} icon={"camera"} color={'white'}/>
-          <CustomButton title={'flip'} onPress={test} icon={"camera-flip"} color={'white'}/>
+          <CustomButton title={'flip'} onPress={() => cropImage(image)} icon={"camera-flip"} color={'white'}/>
         </View>
        
         </View>
@@ -233,6 +230,25 @@ const[prefferedCamera] = usePreferredCameraDevice
 
 
 const styles = StyleSheet.create({
+
+  loadingScreen:{
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    backgroundColor: '#195677',
+    width: '100%'
+
+  },
+  spinner: {
+    marginBottom: 20, // Add some space between the spinner and text
+  },
+  loadingScreenContent:{
+    fontSize: 18,
+    color: '#ffffff', // White text for better visibility
+    textAlign: 'center',
+    fontWeight: 'bold'
+
+  },
 //100 percentage of layout.
   container:{
 
@@ -270,6 +286,8 @@ const styles = StyleSheet.create({
     backgroundColor: 'rgba(0, 0, 0, 0.5)', // Optional: Add semi-transparent background for visibility
 
   },
+
+
 
 pictureButtonText: {
   fontSize: 15,
