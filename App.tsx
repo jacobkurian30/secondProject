@@ -30,11 +30,11 @@ import { useState, useEffect, useRef } from 'react';
 import CustomButton from './component/CustomButton'; 
 
 import PictureView from './component/PictureView';
-import { Image } from 'expo-image';
 import TextRecognition from '@react-native-ml-kit/text-recognition';
 import { Camera, useCameraPermission, useCameraDevice, useCameraDevices, CameraDevice,getCameraDevice, } from 'react-native-vision-camera';
 import { CameraRoll } from "@react-native-camera-roll/camera-roll";
 import ImageCropPicker from 'react-native-image-crop-picker';
+import { CropperOptions } from './component/types/CropperOptions';
 
 
 
@@ -43,22 +43,17 @@ import { request, PERMISSIONS, RESULTS , check, requestMultiple, openSettings} f
 
 function App(): React.JSX.Element {
 
-  const { hasPermission, requestPermission } = useCameraPermission();
-
-
-
-  const[hasCameraPermission, setHasCameraPermission] = useState(null);
   const[image, setImage] = useState<string>();
-  const[message, setMessage] = useState('Test 234');
-  const[count, setCount] = useState(0);
-  const[isCameraVisible, setIsCameraVisible]= useState(true);
   const[isImageTaken, setIsImageTaken]= useState(false);
   const[content, setContent] = useState();
   const camera = useRef<Camera>(null)
   const [isLoading, setIsLoading] = useState(true);
   const [permissionGranted, setPermissionGranted] = useState(false);
+  const [cameraType, setCameraType] = useState('back');
+  const [currentDevice, setCurrentDevice] = useState();
+  const [displayImage, setDisplayImage] = useState(true);
 
-  const device = useCameraDevice('back', {
+  const device = useCameraDevice(cameraType, {
     physicalDevices: [
       'ultra-wide-angle-camera',
       'wide-angle-camera',
@@ -66,9 +61,12 @@ function App(): React.JSX.Element {
     ]
   });
 
+  const flipCamera = () => {
+    setCameraType((prevType) => (prevType === 'back' ? 'front' : 'back'));
+    console.log("Flipping camera... Current camera" + cameraType);
+  };
 
-
-
+  /* Requesting library permission. */
   const requestMediaLibraryPermission = async () => {
       
     try {
@@ -117,63 +115,78 @@ function App(): React.JSX.Element {
     setTimeout(() => requestMediaLibraryPermission(), 1000);
 
     
-    
     if(device){
       setIsLoading(false);
     }
 
-    console.log("~~~~~~~  Count:");
-    console.log("useEffect camera status");
-  }, [camera, device, isLoading, permissionGranted, image]);
+    console.log("App is loading..");
+    setCurrentDevice(device);
+    
+
+  }, [camera, device, isLoading, permissionGranted, image, cameraType, currentDevice]);
 
   
+ 
+  
 
-  async function readContentFromPicture(image: string){
+  async function readContentFromImage(image: string){
 
     try {
-    console.log("Reading content from image.." + image );
-
-    const data = await TextRecognition.recognize(image);
-
-    console.log("Text " + data.text);
-    console.log("Text: " + JSON.stringify(data, null, 2));
-
-    setContent(data);
-
+      console.log("Reading content from image.." + image );
+      const data = await TextRecognition.recognize(image);
+      //console.log("Data read from image. " + JSON.stringify(data, null, 2));
+      console.log("Follwing is the text: ", data.text);
+      setContent(data.text);
     } catch(e) {
 
       console.log(e);
       
     }
   }
+/*
+  function flipCamera(){
+    const device = useCameraDevice('front', {
+      physicalDevices: [
+        'ultra-wide-angle-camera',
+        'wide-angle-camera',
+        'telephoto-camera'
+      ]
+    });
+  }
+    */
 
-
+  //App is loading..
   if (isLoading) {
     return <View style={styles.loadingScreen}>
     <ActivityIndicator size="large" color="#ffffff" style={styles.spinner} />
-    <Text style={styles.loadingScreenContent}>Loading camera...</Text>
+    <Text style={styles.loadingScreenContent}>Loading...</Text>
   </View>;
   }
+  //Getting app permissions
   if (!permissionGranted) {
-    return <Text>Waiting for camera permissions...</Text>;
+    return <View style={styles.loadingScreen}>
+    <ActivityIndicator size="large" color="#ffffff" style={styles.spinner} />
+    <Text style={styles.loadingScreenContent}>Gathering Permissions...</Text>
+  </View>;
   }
 
 
-  async function takePicture(){
-     var imageUrl: string;
+  async function takePhoto(){
+     
+    var imageUrl: string;
 
     try {
       const photo =  await camera.current?.takePhoto({flash: "off", enableShutterSound: true});
       setImage(photo.uri);
       console.log(photo.path);
-
-      const savedUri = await CameraRoll.save(`file://${photo.path}`, {
-      type: 'photo',
-    })
+      //TODO : Update this funtion to the non-depricated one
+      const savedUri = await CameraRoll.save(`file://${photo.path}`, {type: 'photo',})
 
       console.log("saved URL : "+ savedUri);
       setImage(savedUri);
-      readContentFromPicture(savedUri);
+      readContentFromImage(savedUri);
+
+      setIsImageTaken(true);
 
     //console.log(photo);
     } catch(e){
@@ -183,19 +196,25 @@ function App(): React.JSX.Element {
 
   }
 
-  function test(){}
+  function discardImage(){
+    setIsImageTaken(false);
+  }
+  
+
+  
 
   const cropImage = async (imagePath: string) => {
     console.log("Image Path " + imagePath);
+
+    const options: CropperOptions = {
+      path: imagePath,
+      width: 300,  // Desired width
+      height: 300, // Desired height
+      cropping: true,
+    } as CropperOptions
+
     try {
-      const croppedImage = await ImageCropPicker.openCropper(
-      {
-        path: imagePath,
-        width: 300,  // Desired width
-        height: 300, // Desired height
-        cropping: true,
-      }
-    );
+      const croppedImage = await ImageCropPicker.openCropper(options);
       console.log('Cropped Image:', croppedImage);
     } catch (error) {
       console.error('Error cropping image:', error);
@@ -204,7 +223,7 @@ function App(): React.JSX.Element {
 
 
   const cameraProps = {
-    device: device,
+    device: currentDevice,
     isActive: true,
     preview: true,
     enableZoomGesture: true
@@ -213,18 +232,36 @@ function App(): React.JSX.Element {
 
   return (
     <View style={styles.container}>
-    <Camera style={styles.camera}
-      ref={camera}
-      {...cameraProps} 
-      photo={true}> </Camera>
+      {isImageTaken ? (
+        <View style={styles.pictureContainer}>
+          {/* Replace with content to display when isImageTake is true */}
+          <PictureView imageUrl={image}></PictureView>
 
-        <View style={styles.buttonContainer}>
-          <CustomButton title={'camera'} onPress={takePicture} icon={"camera"} color={'white'}/>
-          <CustomButton title={'flip'} onPress={() => cropImage(image)} icon={"camera-flip"} color={'white'}/>
+          <View style={styles.buttonContainer}>
+            <CustomButton title={'Crop'} onPress={() => cropImage(image)} icon={"crop"} color={'white'} />
+            <CustomButton title={'Process'} onPress={() => readContentFromImage(image)} icon={"send"} color={'white'} />
+            <CustomButton title={'Discard'} onPress={discardImage} icon={"close"} color={'white'} />
+
+          </View>
         </View>
-       
-        </View>
+      ) : (
+        <>
+          <Camera 
+            style={styles.camera} 
+            ref={camera} 
+            {...cameraProps} 
+            photo={true}>
+          </Camera>
+  
+          <View style={styles.buttonContainer}>
+            <CustomButton title={'camera'} onPress={takePhoto} icon={"camera"} color={'white'} />
+            <CustomButton title={'flip'} onPress={flipCamera} icon={"camera-flip"} color={'white'} />
+          </View>
+        </>
+      )}
+    </View>
   );
+  
 }
 
 

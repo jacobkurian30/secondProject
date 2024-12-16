@@ -1,6 +1,5 @@
-import {View, StyleSheet, Text} from 'react-native';
+import {View, StyleSheet, Text, Image} from 'react-native';
 import * as React from 'react';
-import { Image } from 'expo-image';
 
 
 export default function PictureView({imageUrl}){
@@ -12,7 +11,7 @@ export default function PictureView({imageUrl}){
             <Text> Displaying Taken Images</Text>
            <Image
                 style={styles.image}
-                source= {imageUrl}
+                source= {{uri : imageUrl}}
                 transition={1000}/>
         </View> 
     )
